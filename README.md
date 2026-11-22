@@ -1,3 +1,5 @@
+<div align="center">
+
 # 🛡️ Staffet
 
 **An LLM firewall proxy.** Put it between your AI tools and model providers to redact sensitive data, guard tool calls, scan generated code, and protect classified documents.
@@ -21,10 +23,26 @@ Works with **OpenAI** and **Anthropic** compatible endpoints, including Claude C
 
 ## 🚀 Quick start
 
+Install from npm:
+
 ```bash
-npm install
-npm run start          # starts the proxy on http://127.0.0.1:8787
-npm run demo           # runs a demo with sample traffic
+npm i staffet
+npx staffet init       # creates staffet.config.yaml and an admin token
+npx staffet start      # starts the proxy on http://127.0.0.1:8787
+```
+
+Or install it globally and run `staffet` directly:
+
+```bash
+npm i -g staffet
+staffet init
+staffet start
+```
+
+Try it without an API key:
+
+```bash
+npx staffet demo       # scripted model + sample agent traffic
 ```
 
 Point your client at Staffet instead of the provider:
