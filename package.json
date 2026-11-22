@@ -1,6 +1,6 @@
 {
   "name": "staffet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Staffet — an LLM firewall proxy. OpenAI- and Anthropic-compatible endpoints that redact confidential data, guard tool calls, scan generated code and protect classified documents.",
   "keywords": [
     "llm",
