@@ -1,0 +1,204 @@
+# Domain rules — every URL / host a tool call would reach is checked before the harness sees the call.
+#
+# Fields:  action (block | allow | warn)   domains (wildcards: "*.example.com" also matches example.com)
+#          heuristic (ip-literal | punycode | userinfo | plain-http | tld | scheme | cloud-metadata)
+# Order of evaluation: custom rules (first match wins) → default block lists → heuristics → allow lists
+# → policy mode (denylist = allow the rest, allowlist = block the rest).
+version: 1
+rules:
+  - id: domain.exfiltration-services
+    type: domain
+    name: Paste, file-drop and request-capture services
+    description: Classic data-exfiltration and out-of-band callback endpoints.
+    severity: critical
+    action: block
+    domains:
+      - pastebin.com
+      - "*.pastebin.com"
+      - hastebin.com
+      - ghostbin.com
+      - paste.ee
+      - dpaste.com
+      - dpaste.org
+      - rentry.co
+      - controlc.com
+      - privatebin.net
+      - transfer.sh
+      - file.io
+      - 0x0.st
+      - temp.sh
+      - tmpfiles.org
+      - catbox.moe
+      - "*.catbox.moe"
+      - gofile.io
+      - anonfiles.com
+      - bashupload.com
+      - termbin.com
+      - webhook.site
+      - "*.webhook.site"
+      - requestbin.com
+      - "*.requestbin.com"
+      - requestcatcher.com
+      - "*.requestcatcher.com"
+      - "*.pipedream.net"
+      - "*.beeceptor.com"
+      - "*.burpcollaborator.net"
+      - "*.oastify.com"
+      - "*.interact.sh"
+      - "*.oast.fun"
+      - "*.oast.pro"
+      - "*.oast.live"
+      - "*.oast.site"
+      - "*.oast.online"
+      - "*.oast.me"
+      - "*.dnslog.cn"
+      - "*.ceye.io"
+      - canarytokens.com
+      - "*.canarytokens.com"
+
+  - id: domain.tunnels
+    type: domain
+    name: Reverse tunnels
+    description: Tunnels expose local services or hide the real destination.
+    severity: high
+    action: block
+    domains:
+      - "*.ngrok.io"
+      - "*.ngrok.app"
+      - "*.ngrok.dev"
+      - "*.ngrok-free.app"
+      - "*.ngrok-free.dev"
+      - "*.trycloudflare.com"
+      - "*.loca.lt"
+      - "*.localtunnel.me"
+      - "*.serveo.net"
+      - "*.localhost.run"
+      - "*.pagekite.me"
+      - "*.tunnelmole.net"
+      - "*.devtunnels.ms"
+      - "*.bore.pub"
+      - bore.pub
+
+  - id: domain.url-shorteners
+    type: domain
+    name: URL shorteners
+    description: The real destination is hidden behind a redirect.
+    severity: medium
+    action: block
+    domains: [bit.ly, tinyurl.com, t.co, goo.gl, is.gd, ow.ly, buff.ly, rebrand.ly, cutt.ly, shorturl.at, rb.gy, tiny.cc, t.ly, v.gd, lnkd.in, s.id]
+
+  - id: domain.cloud-metadata
+    type: domain
+    name: Cloud instance metadata endpoints
+    description: Reading instance metadata leaks cloud credentials (SSRF).
+    severity: critical
+    action: block
+    domains: [169.254.169.254, 169.254.170.2, metadata.google.internal, metadata.azure.com, 100.100.100.200, "fd00:ec2::254"]
+
+  - id: domain.anonymity-networks
+    type: domain
+    name: Tor / anonymity gateways
+    severity: high
+    action: block
+    domains: ["*.onion", "*.onion.to", "*.onion.ws", "*.tor2web.org", "*.i2p"]
+
+  - id: domain.ip-literal
+    type: domain
+    name: Raw public IP address instead of a hostname
+    description: Legitimate services are reached by name; raw public IPs are a common C2 / exfiltration tell. Loopback and private ranges are not affected.
+    severity: high
+    action: block
+    heuristic: ip-literal
+
+  - id: domain.punycode
+    type: domain
+    name: Punycode / look-alike (IDN) hostnames
+    severity: high
+    action: block
+    heuristic: punycode
+
+  - id: domain.url-userinfo
+    type: domain
+    name: Credentials or misleading user-info in the URL
+    description: "https://trusted.com@evil.example/ style URLs and URLs carrying passwords."
+    severity: high
+    action: block
+    heuristic: userinfo
+
+  - id: domain.dangerous-scheme
+    type: domain
+    name: Dangerous URL schemes
+    severity: high
+    action: block
+    heuristic: scheme
+    schemes: [file, gopher, dict, ldap, ldaps, smb, tftp, jar, netdoc]
+
+  - id: domain.suspicious-tld
+    type: domain
+    name: Top-level domains with a poor reputation
+    severity: low
+    action: warn
+    heuristic: tld
+    tlds: [zip, mov, tk, ml, ga, cf, gq, top, click, country, kim, work, gdn, loan, men, racing, review, stream, download, xin, cam, rest, icu, cyou, buzz, sbs]
+
+  - id: domain.plain-http
+    type: domain
+    name: Unencrypted http:// to a public host
+    severity: low
+    action: warn
+    heuristic: plain-http
+
+  - id: domain.developer-essentials
+    type: domain
+    name: Developer essentials (allow list)
+    description: Used when policy.toolCalls.domains.mode is "allowlist". Add your own allowed domains as custom rules.
+    severity: info
+    action: allow
+    domains:
+      - localhost
+      - "*.localhost"
+      - github.com
+      - "*.github.com"
+      - "*.githubusercontent.com"
+      - "*.github.io"
+      - gitlab.com
+      - "*.gitlab.com"
+      - bitbucket.org
+      - "*.bitbucket.org"
+      - registry.npmjs.org
+      - "*.npmjs.com"
+      - "*.npmjs.org"
+      - "*.yarnpkg.com"
+      - pypi.org
+      - "*.pypi.org"
+      - files.pythonhosted.org
+      - "*.python.org"
+      - crates.io
+      - "*.crates.io"
+      - "*.rust-lang.org"
+      - docs.rs
+      - pkg.go.dev
+      - proxy.golang.org
+      - "*.golang.org"
+      - go.dev
+      - "*.maven.org"
+      - "*.apache.org"
+      - "*.gradle.org"
+      - "*.nuget.org"
+      - rubygems.org
+      - "*.rubygems.org"
+      - "*.docker.io"
+      - "*.docker.com"
+      - ghcr.io
+      - quay.io
+      - "*.nodejs.org"
+      - "*.microsoft.com"
+      - "*.visualstudio.com"
+      - "*.mozilla.org"
+      - stackoverflow.com
+      - "*.stackoverflow.com"
+      - "*.stackexchange.com"
+      - "*.wikipedia.org"
+      - "*.readthedocs.io"
+      - "*.debian.org"
+      - "*.ubuntu.com"

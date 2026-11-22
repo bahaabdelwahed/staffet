@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Runtime data (request logs, API keys, restricted document registry)
+data/
+*.jsonl
+*.log
+
+# Secrets and local configuration
+.env
+.env.*
+staffet.config.yaml
+.claude/settings.local.json
+*.pem
+*.key
+
+# Local rules (may contain organisation-specific patterns)
+rules/custom/
+
+# Test artefacts generated at runtime
+guestbook.txt
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,152 @@
+# Command rules — shell commands the model asks the harness to run.
+#
+# Fields:  action (block | warn)   pattern (JS regex over the whole command, flags default "i")
+version: 1
+rules:
+  # ───────────── destructive ─────────────
+  - id: cmd.rm-root
+    type: command
+    name: Recursive delete of root, home or a drive
+    severity: critical
+    action: block
+    pattern: '\brm\s+(?:-[a-z-]+\s+)*-[a-z]*(?:r[a-z]*f|f[a-z]*r)[a-z]*\s+(?:-[a-z-]+\s+)*(?:--no-preserve-root\s+)?["'']?(?:/|/\*|~|~/|~/\*|\$HOME|\$\{HOME\}|\$HOME/\*|\.|\.\.|\*|[a-z]:[\\/]?\*?)["'']?(?=\s|$|;|&|\|)'
+
+  - id: cmd.windows-recursive-delete
+    type: command
+    name: Recursive delete of a drive, Windows or user profile (cmd / PowerShell)
+    severity: critical
+    action: block
+    pattern: '(?:\b(?:del|erase)\s+(?:/[a-z]\s+)*/s\b[^\n]*\s["'']?(?:[a-z]:\\?\*?|%(?:systemdrive|systemroot|userprofile|homepath)%[^\s]*)["'']?(?=\s|$)|\b(?:rd|rmdir)\s+(?:/[a-z]\s+)*/s\b[^\n]*\s["'']?(?:[a-z]:\\?|%(?:systemdrive|systemroot|userprofile)%)["'']?(?=\s|$)|\b(?:Remove-Item|ri|rm|del|rmdir)\b[^\n|;]*-(?:Recurse|r)\b[^\n|;]*\s["'']?(?:[a-z]:[\\/]?\*?|~[\\/]?\*?|\$env:(?:USERPROFILE|SystemRoot|SystemDrive|windir|HOMEPATH)[\\/]?\*?|\$HOME[\\/]?\*?)["'']?(?=\s|$|;|\|))'
+
+  - id: cmd.disk-wipe
+    type: command
+    name: Disk formatting / raw device writes
+    severity: critical
+    action: block
+    pattern: '(?:\bmkfs(?:\.\w+)?\s|\bdd\b[^\n]*\bof=/dev/(?:sd|hd|nvme|vd|xvd|mmcblk|disk)|>\s*/dev/(?:sd|hd|nvme|vd|xvd)[a-z0-9]*\b|\bformat(?:\.com)?\s+[a-z]:|\bFormat-Volume\b|\bClear-Disk\b|\bdiskpart\b|\bwipefs\b|\bshred\s+[^\n]*/dev/|\bcipher\s+/w)'
+
+  - id: cmd.fork-bomb
+    type: command
+    name: Fork bomb
+    severity: critical
+    action: block
+    pattern: ':\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:|%0\s*\|\s*%0'
+    flags: ''
+
+  - id: cmd.backup-destruction
+    type: command
+    name: Deleting backups / shadow copies / boot configuration
+    severity: critical
+    action: block
+    pattern: '(?:\bvssadmin\b[^\n]*\bdelete\s+shadows|\bwbadmin\b[^\n]*\bdelete\b|\bbcdedit\b[^\n]*(?:recoveryenabled|bootstatuspolicy|/delete)|\bwmic\b[^\n]*shadowcopy[^\n]*delete)'
+
+  - id: cmd.power-state
+    type: command
+    name: Shutdown / reboot
+    severity: high
+    action: block
+    pattern: '(?:^|[;&|]\s*|\bsudo\s+)(?:shutdown|reboot|halt|poweroff|init\s+[06]|Stop-Computer|Restart-Computer)\b'
+
+  # ───────────── remote code execution ─────────────
+  - id: cmd.pipe-to-shell
+    type: command
+    name: Download piped straight into an interpreter
+    severity: critical
+    action: block
+    pattern: '(?:\b(?:curl|wget|fetch)\b[^\n|;]*\|\s*(?:sudo\s+)?(?:(?:ba|z|k|da|fi)?sh|python[\d.]*|perl|ruby|node|php)\b|\b(?:iwr|irm|curl|wget|Invoke-WebRequest|Invoke-RestMethod)\b[^\n|;]*\|\s*(?:iex|Invoke-Expression)\b|\b(?:iex|Invoke-Expression)\b[^\n]*(?:DownloadString|DownloadData|Invoke-WebRequest|Invoke-RestMethod|\biwr\b|\birm\b)|\b(?:ba|z)?sh\s+(?:-c\s+)?["'']?\$\(\s*(?:curl|wget)\b|\b(?:ba|z)?sh\s+<\(\s*(?:curl|wget)\b)'
+
+  - id: cmd.reverse-shell
+    type: command
+    name: Reverse shell
+    severity: critical
+    action: block
+    pattern: '(?:/dev/(?:tcp|udp)/[^\s/]+/\d+|\b(?:nc|ncat|netcat)\b[^\n]*\s-[a-z]*e[a-z]*\s|\bsocat\b[^\n]*\bexec:|\bmkfifo\b[^\n]*\|\s*(?:nc|ncat|netcat)\b|New-Object\s+(?:System\.)?Net\.Sockets\.TCPClient|\bpython[\d.]*\b[^\n]*socket[^\n]*(?:dup2|subprocess)|\bbash\s+-i\s*>&)'
+
+  - id: cmd.encoded-payload
+    type: command
+    name: Encoded / obfuscated command execution
+    severity: high
+    action: block
+    pattern: '(?:\bpowershell(?:\.exe)?\b[^\n]*\s-(?:e|en|enc|enco|encod|encode|encoded|encodedcommand)\s+[A-Za-z0-9+/=]{20,}|\bbase64\s+(?:-d|--decode|-D)\b[^\n|]*\|\s*(?:sudo\s+)?(?:(?:ba|z)?sh|python[\d.]*|perl)\b|\becho\s+[A-Za-z0-9+/=]{24,}\s*\|\s*base64\s+(?:-d|--decode)\s*\|\s*(?:ba|z)?sh|\bcertutil\b[^\n]*-(?:decode|urlcache)\b|\bmshta\b\s+(?:https?:|javascript:|vbscript:)|\bregsvr32\b[^\n]*/i:https?:|\brundll32\b[^\n]*javascript:|\bbitsadmin\b[^\n]*/transfer)'
+
+  # ───────────── exfiltration ─────────────
+  - id: cmd.upload-file
+    type: command
+    name: Uploading local files to a remote host
+    severity: high
+    action: block
+    pattern: '(?:\bcurl\b[^\n]*\s(?:-T|--upload-file|-F|--form|--data-binary|-d|--data|--data-raw)\s*=?\s*["'']?[\w.-]*=?@|\bwget\b[^\n]*--post-file|\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\b[^\n]*-InFile\b|\b(?:scp|rsync|sftp)\b[^\n]*\s[\w.-]+@[\w.-]+:|\bnc\b[^\n]*<\s*[\w./~-]+)'
+
+  - id: cmd.env-dump-to-network
+    type: command
+    name: Sending environment variables or secrets over the network
+    severity: critical
+    action: block
+    pattern: '(?:\b(?:env|printenv|set)\b[^\n|]*\|\s*(?:curl|wget|nc|ncat)\b|\b(?:curl|wget)\b[^\n]*\$\(\s*(?:env|printenv|cat\s+[^)]*(?:\.env|id_rsa|credentials|\.aws|\.ssh)))'
+
+  # ───────────── credential access ─────────────
+  - id: cmd.credential-dumping
+    type: command
+    name: Credential dumping tools
+    severity: critical
+    action: block
+    pattern: '(?:\bmimikatz\b|\bsekurlsa\b|\blsadump\b|\bprocdump\b[^\n]*lsass|\bcomsvcs\.dll\b[^\n]*MiniDump|\breg\s+save\s+hk(?:lm|ey_local_machine)\\(?:sam|security|system)\b|\bsecretsdump\b|\bLaZagne\b|\bcmdkey\s+/list\b|\bsecurity\s+(?:find|dump)-(?:generic|internet)-password\b|\bsecurity\s+dump-keychain\b|\bntdsutil\b|\bGet-Credential\b[^\n]*Export|\bvaultcmd\b)'
+
+  # ───────────── persistence / privilege / defence evasion ─────────────
+  - id: cmd.disable-security
+    type: command
+    name: Disabling security tooling
+    severity: critical
+    action: block
+    pattern: '(?:\bSet-MpPreference\b[^\n]*-Disable\w+\s+(?:\$true|1)|\bAdd-MpPreference\b[^\n]*-Exclusion|\bnetsh\s+(?:advfirewall|firewall)\b[^\n]*(?:state\s+off|disable)|\bsc(?:\.exe)?\s+(?:stop|delete|config)\s+(?:WinDefend|Sense|wscsvc|MpsSvc)|\bsetenforce\s+0\b|\bufw\s+disable\b|\bsystemctl\s+(?:stop|disable)\s+(?:firewalld|apparmor|auditd|falcon-sensor|crowdstrike)|\bSet-ExecutionPolicy\s+(?:-ExecutionPolicy\s+)?(?:Bypass|Unrestricted)\b[^\n]*-Scope\s+(?:LocalMachine|MachinePolicy)|\bauditpol\b[^\n]*/clear|\bwevtutil\s+cl\b|\bClear-EventLog\b|\bhistory\s+-c\b)'
+
+  - id: cmd.persistence
+    type: command
+    name: Creating accounts, services or scheduled tasks
+    severity: high
+    action: block
+    pattern: '(?:\bnet\s+(?:user|localgroup)\b[^\n]*\s/add\b|\buseradd\b|\badduser\b|\busermod\b[^\n]*-aG\s+(?:sudo|wheel|root)|\bschtasks\b[^\n]*/create\b|\bRegister-ScheduledTask\b|\bsc(?:\.exe)?\s+create\b|\bNew-Service\b|\bcrontab\s+(?!-l\b)[^\n]*|\breg\s+add\b[^\n]*\\(?:Run|RunOnce|Winlogon)\b|\bSet-ItemProperty\b[^\n]*\\CurrentVersion\\Run\b|\blaunchctl\s+load\b)'
+
+  - id: cmd.privilege-escalation
+    type: command
+    name: Privilege escalation helpers
+    severity: high
+    action: block
+    pattern: '(?:\bsudo\s+(?:su\b|-i\b|-s\b|bash\b|sh\b)|\bchmod\s+(?:-R\s+)?[0-7]*[4-7][0-7]{3}\s|\bchmod\s+(?:-R\s+)?u\+s\b|\bchown\s+(?:-R\s+)?root\b[^\n]*\s/(?:\s|$)|\bsetcap\b|\bStart-Process\b[^\n]*-Verb\s+RunAs\b|\brunas\s+/user:)'
+
+  - id: cmd.world-writable
+    type: command
+    name: Making files world-writable
+    severity: medium
+    action: warn
+    pattern: '\bchmod\s+(?:-R\s+)?(?:0?777|a\+rwx|o\+w)\b|\bicacls\b[^\n]*\bEveryone:\(?F'
+
+  # ───────────── risky but sometimes legitimate (warn) ─────────────
+  - id: cmd.git-destructive
+    type: command
+    name: Destructive git operations
+    severity: medium
+    action: warn
+    pattern: '\bgit\s+(?:push\b[^\n]*(?:--force\b|-f\b|--force-with-lease\b|--mirror\b)|reset\s+--hard\b|clean\s+-[a-z]*f[a-z]*d|checkout\s+--\s+\.|branch\s+-D\b|filter-branch\b|reflog\s+expire\b)'
+
+  - id: cmd.package-global-install
+    type: command
+    name: Installing software system-wide
+    severity: low
+    action: warn
+    pattern: '(?:\bnpm\s+(?:i|install)\s+(?:-g|--global)\b|\bpip3?\s+install\b[^\n]*--break-system-packages|\bsudo\s+(?:apt|apt-get|yum|dnf|pacman|zypper)\s+(?:install|remove|purge)\b|\bchoco\s+install\b|\bwinget\s+install\b|\bmsiexec\b[^\n]*/i\b)'
+
+  - id: cmd.env-dump
+    type: command
+    name: Dumping all environment variables
+    description: Output is redacted on the way back, so this is only reported.
+    severity: low
+    action: warn
+    pattern: '(?:^|[;&|]\s*)(?:env|printenv|export\s+-p|Get-ChildItem\s+env:|gci\s+env:|dir\s+env:|set)\s*(?:$|[|;&>])'
+
+  - id: cmd.database-destructive
+    type: command
+    name: Dropping databases / tables
+    severity: high
+    action: warn
+    pattern: '\b(?:DROP\s+(?:DATABASE|SCHEMA|TABLE)\s|TRUNCATE\s+TABLE\s|dropdb\s|mongo[^\n]*dropDatabase|redis-cli[^\n]*FLUSHALL|kubectl\s+delete\s+(?:ns|namespace|pv|pvc|all)\b|terraform\s+destroy\b|docker\s+system\s+prune\b[^\n]*-a)'

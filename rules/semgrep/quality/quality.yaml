@@ -1,0 +1,148 @@
+# Staffet code-quality rules (Semgrep / Opengrep format, original work).
+# Add your own rule files in rules/custom/semgrep/quality/ (or .../security/).
+rules:
+  # ───────────── Python ─────────────
+  - id: staffet.py.quality.swallowed-exception
+    languages: [python]
+    severity: WARNING
+    message: The exception is caught and silently ignored.
+    metadata:
+      category: quality
+      fix: Catch the specific exception type and handle or log it.
+    pattern-either:
+      - pattern: |
+          try:
+              ...
+          except:
+              ...
+      - pattern: |
+          try:
+              ...
+          except $E:
+              pass
+      - pattern: |
+          try:
+              ...
+          except $E as $V:
+              pass
+
+  - id: staffet.py.quality.mutable-default
+    languages: [python]
+    severity: WARNING
+    message: A mutable default argument is shared between calls.
+    metadata:
+      category: quality
+      fix: Default to None and create the list/dict inside the function.
+    pattern-either:
+      - pattern: |
+          def $F(..., $A=[], ...):
+              ...
+      - pattern: |
+          def $F(..., $A={}, ...):
+              ...
+
+  - id: staffet.py.quality.compare-to-none
+    languages: [python]
+    severity: WARNING
+    message: Comparison to None with == / !=.
+    metadata:
+      category: quality
+      fix: Use "is None" / "is not None".
+    pattern-either:
+      - pattern: $X == None
+      - pattern: $X != None
+
+  # ───────────── JavaScript / TypeScript ─────────────
+  - id: staffet.js.quality.empty-catch
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: An exception is silently swallowed.
+    metadata:
+      category: quality
+      fix: Handle the error, log it, or rethrow.
+    pattern-either:
+      - pattern: |
+          try { ... } catch ($E) { }
+      - pattern: |
+          try { ... } catch { }
+
+  - id: staffet.js.quality.self-comparison
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: A value is compared with itself — almost certainly a bug.
+    metadata:
+      category: quality
+      fix: Compare against the intended operand (use Number.isNaN for NaN checks).
+    pattern-either:
+      - pattern: $X === $X
+      - pattern: $X == $X
+      - pattern: $X !== $X
+      - pattern: $X != $X
+
+  - id: staffet.js.quality.assignment-in-condition
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: Assignment inside a condition — probably meant a comparison.
+    metadata:
+      category: quality
+      fix: Use === for comparison, or assign before the condition.
+    pattern: if ($X = $Y) $BODY
+
+  - id: staffet.js.quality.duplicate-branch-condition
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: The same condition is tested twice in an if / else-if chain.
+    metadata:
+      category: quality
+      fix: Remove the duplicate branch or correct its condition.
+    pattern: |
+      if ($C) { ... } else if ($C) { ... }
+
+  # ───────────── Java ─────────────
+  - id: staffet.java.quality.empty-catch
+    languages: [java]
+    severity: WARNING
+    message: An exception is silently swallowed.
+    metadata:
+      category: quality
+      fix: Handle the exception, log it, or rethrow.
+    pattern: |
+      try { ... } catch ($E $V) { }
+
+  - id: staffet.java.quality.string-identity
+    languages: [java]
+    severity: WARNING
+    message: Strings are compared with == instead of equals().
+    metadata:
+      category: quality
+      fix: Use "literal".equals(value).
+    pattern-either:
+      - pattern: $X == "..."
+      - pattern: $X != "..."
+
+  # ───────────── Go ─────────────
+  - id: staffet.go.quality.defer-in-loop
+    languages: [go]
+    severity: WARNING
+    message: defer inside a loop runs only when the function returns; resources pile up.
+    metadata:
+      category: quality
+      fix: Close the resource at the end of each iteration, or move the body into a function.
+    pattern-either:
+      - pattern: |
+          for ... {
+              ...
+              defer $F(...)
+              ...
+          }
+
+  # ───────────── C / C++ ─────────────
+  - id: staffet.c.quality.assignment-in-condition
+    languages: [c, cpp]
+    severity: WARNING
+    message: Assignment inside a condition — probably meant a comparison.
+    metadata:
+      category: quality
+      fix: Use == for comparison, or assign before the condition.
+    pattern: |
+      if ($X = $Y) { ... }

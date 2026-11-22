@@ -1,0 +1,194 @@
+# Staffet security rules for Python (Semgrep / Opengrep format, original work — not from the Semgrep registry).
+rules:
+  - id: staffet.py.sql-injection
+    languages: [python]
+    severity: ERROR
+    message: A SQL statement is built from non-constant strings and executed.
+    metadata:
+      category: security
+      cwe: CWE-89
+      fix: 'Use bound parameters: cursor.execute("SELECT ... WHERE id = %s", (value,)).'
+    pattern-either:
+      - pattern: $DB.execute("..." + $X, ...)
+      - pattern: $DB.execute("..." % $X, ...)
+      - pattern: $DB.execute("...".format(...), ...)
+      - pattern: $DB.execute(f"...{$X}...", ...)
+      - pattern: $DB.executemany(f"...{$X}...", ...)
+      - patterns:
+          - pattern: $DB.execute($Q, ...)
+          - pattern-either:
+              - pattern-inside: |
+                  $Q = "..." + $X
+                  ...
+              - pattern-inside: |
+                  $Q = f"...{$X}..."
+                  ...
+              - pattern-inside: |
+                  $Q = "..." % $X
+                  ...
+              - pattern-inside: |
+                  $Q = "...".format(...)
+                  ...
+
+  - id: staffet.py.command-injection
+    languages: [python]
+    severity: ERROR
+    message: A shell command is executed with shell=True or built from non-constant input.
+    metadata:
+      category: security
+      cwe: CWE-78
+      fix: 'Pass an argument list without a shell: subprocess.run(["tool", arg], check=True).'
+    pattern-either:
+      - pattern: subprocess.$F(..., shell=True, ...)
+      - patterns:
+          - pattern-either:
+              - pattern: os.system($CMD)
+              - pattern: os.popen($CMD, ...)
+          - pattern-not: os.system("...")
+          - pattern-not: os.popen("...", ...)
+
+  - id: staffet.py.code-injection
+    languages: [python]
+    severity: ERROR
+    message: eval()/exec() is called on a non-constant value.
+    metadata:
+      category: security
+      cwe: CWE-95
+      fix: Use ast.literal_eval for data, or an explicit dispatch table.
+    patterns:
+      - pattern-either:
+          - pattern: eval($X, ...)
+          - pattern: exec($X, ...)
+      - pattern-not: eval("...", ...)
+      - pattern-not: exec("...", ...)
+
+  - id: staffet.py.unsafe-deserialization
+    languages: [python]
+    severity: ERROR
+    message: Deserializing untrusted data with pickle / marshal / unsafe YAML can execute arbitrary code.
+    metadata:
+      category: security
+      cwe: CWE-502
+      fix: Use json, or yaml.safe_load.
+    pattern-either:
+      - pattern: pickle.load(...)
+      - pattern: pickle.loads(...)
+      - pattern: marshal.loads(...)
+      - pattern: yaml.unsafe_load(...)
+      - pattern: yaml.load($X)
+      - pattern: yaml.load($X, Loader=yaml.Loader)
+      - pattern: yaml.load($X, Loader=yaml.UnsafeLoader)
+      - pattern: yaml.load($X, Loader=yaml.FullLoader)
+
+  - id: staffet.py.tls-verify-disabled
+    languages: [python]
+    severity: ERROR
+    message: TLS certificate verification is disabled.
+    metadata:
+      category: security
+      cwe: CWE-295
+      fix: 'Remove verify=False; pass your CA bundle with verify="path/to/ca.pem".'
+    pattern-either:
+      - pattern: $F(..., verify=False, ...)
+      - pattern: ssl._create_unverified_context(...)
+      - pattern: $CTX.check_hostname = False
+      - pattern: $CTX.verify_mode = ssl.CERT_NONE
+
+  - id: staffet.py.weak-hash
+    languages: [python]
+    severity: WARNING
+    message: MD5/SHA-1 are broken for security purposes.
+    metadata:
+      category: security
+      cwe: CWE-327
+      fix: Use hashlib.sha256, or bcrypt/argon2 for passwords.
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+      - pattern: hashlib.new("md5", ...)
+      - pattern: hashlib.new("sha1", ...)
+
+  - id: staffet.py.insecure-random
+    languages: [python]
+    severity: WARNING
+    message: The random module is not cryptographically secure and must not generate secrets.
+    metadata:
+      category: security
+      cwe: CWE-338
+      fix: Use the secrets module (secrets.token_urlsafe, secrets.choice).
+    patterns:
+      - pattern-either:
+          - pattern: $VAR = random.$F(...)
+          - pattern: $VAR = "...".join(random.$F(...) for $I in $R)
+          - pattern: $VAR = "...".join(random.$F(...))
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i).*(token|secret|passw|otp|nonce|salt|session|api_?key).*
+
+  - id: staffet.py.path-traversal
+    languages: [python]
+    severity: WARNING
+    message: A file path comes straight from the HTTP request.
+    metadata:
+      category: security
+      cwe: CWE-22
+      fix: Resolve the path and verify it stays inside the allowed base directory (or use werkzeug.utils.secure_filename).
+    pattern-either:
+      - pattern: open(request.$A.get(...), ...)
+      - pattern: open(request.$A[...], ...)
+      - pattern: open(os.path.join($BASE, request.$A.get(...)), ...)
+      - pattern: open(os.path.join($BASE, request.$A[...]), ...)
+      - pattern: flask.send_file(request.$A.get(...), ...)
+      - pattern: send_file(request.$A.get(...), ...)
+
+  - id: staffet.py.debug-enabled
+    languages: [python]
+    severity: WARNING
+    message: The application is started in debug mode.
+    metadata:
+      category: security
+      cwe: CWE-489
+      fix: Drive debug from configuration and default it to False.
+    pattern: $APP.run(..., debug=True, ...)
+
+  - id: staffet.py.hardcoded-credential
+    languages: [python]
+    severity: ERROR
+    message: A password / secret is hard-coded in a call.
+    metadata:
+      category: security
+      cwe: CWE-798
+      fix: Read the value from the environment or a secret manager.
+    patterns:
+      - pattern-either:
+          - pattern: $F(..., password="$V", ...)
+          - pattern: $F(..., passwd="$V", ...)
+          - pattern: $F(..., secret="$V", ...)
+          - pattern: $F(..., api_key="$V", ...)
+          - pattern: $F(..., secret_key="$V", ...)
+          - pattern: $F(..., token="$V", ...)
+      - metavariable-regex:
+          metavariable: $V
+          regex: ^.{6,}$
+
+  - id: staffet.py.insecure-tempfile
+    languages: [python]
+    severity: WARNING
+    message: tempfile.mktemp() is race-prone.
+    metadata:
+      category: security
+      cwe: CWE-377
+      fix: Use tempfile.mkstemp() or NamedTemporaryFile().
+    pattern: tempfile.mktemp(...)
+
+  - id: staffet.py.jinja-autoescape-off
+    languages: [python]
+    severity: WARNING
+    message: Jinja2 autoescaping is disabled (XSS risk).
+    metadata:
+      category: security
+      cwe: CWE-79
+      fix: Use autoescape=select_autoescape().
+    pattern-either:
+      - pattern: jinja2.Environment(..., autoescape=False, ...)
+      - pattern: Environment(..., autoescape=False, ...)

@@ -1,0 +1,35 @@
+{
+  "name": "staffet",
+  "version": "0.1.0",
+  "description": "Staffet — an LLM firewall proxy. OpenAI- and Anthropic-compatible endpoints that redact confidential data, guard tool calls, scan generated code and protect classified documents.",
+  "keywords": ["llm", "firewall", "proxy", "openai", "anthropic", "claude", "security", "redaction", "dlp"],
+  "type": "module",
+  "license": "UNLICENSED",
+  "bin": {
+    "staffet": "bin/staffet.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "rules/default/",
+    "rules/semgrep/",
+    "dashboard/",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "scripts": {
+    "start": "node bin/staffet.mjs start",
+    "demo": "node bin/staffet.mjs demo",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "undici": "^7.16.0",
+    "unpdf": "^1.4.0",
+    "yaml": "^2.8.1"
+  }
+}
