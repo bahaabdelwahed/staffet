@@ -5,6 +5,14 @@
   "keywords": ["llm", "firewall", "proxy", "openai", "anthropic", "claude", "security", "redaction", "dlp"],
   "type": "module",
   "license": "UNLICENSED",
+  "homepage": "https://github.com/bahaabdelwahed/staffet#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bahaabdelwahed/staffet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bahaabdelwahed/staffet/issues"
+  },
   "bin": {
     "staffet": "bin/staffet.mjs"
   },
