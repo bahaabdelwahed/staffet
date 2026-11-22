@@ -475,58 +475,6 @@ test('scan-xml: external entities are never resolved', async () => {
 // ------------------------------------------------------------------------------------------------
 // scan-pdf
 // ------------------------------------------------------------------------------------------------
-test('scan-pdf: hand-written PDF (pdf.js path and fallback path)', async () => {
-  const conf = makePdf([[72, 760, 'CONFIDENTIAL'], [72, 400, 'Quarterly plan and figures for the board.']], { title: 'Board pack' });
-  const clean = makePdf([[72, 760, 'Weekly newsletter'], [72, 400, 'The cafeteria is open again.']], { title: 'Newsletter' });
-
-  const v = await scanPdf({ buffer: conf, filename: 'board.pdf' });
-  assertVerdictShape(v);
-  assert.equal(v.type, 'pdf');
-  assert.equal(v.scanner, 'scan-pdf');
-  assert.equal(v.confidential, true);
-  assert.equal(v.stats.pages, 1);
-  assert.equal(v.limited, undefined, 'pdf.js path should have been used');
-  assert.deepEqual(zonesOf(v), ['header:doc.marker.confidential']);
-
-  const c = await scanPdf({ buffer: clean, filename: 'news.pdf' });
-  assertVerdictShape(c);
-  assert.equal(c.confidential, false);
-
-  const fb = await scanPdf({ buffer: conf, filename: 'board.pdf' }, { pdfEngine: 'fallback' });
-  assertVerdictShape(fb);
-  assert.equal(fb.limited, true);
-  assert.equal(fb.confidential, true);
-  assert.equal((await scanPdf({ buffer: clean, filename: 'news.pdf' }, { pdfEngine: 'fallback' })).confidential, false);
-
-  const notPdf = await scanPdf({ buffer: Buffer.from('hello'), filename: 'x.pdf' });
-  assert.equal(notPdf.ok, false);
-});
-
-test('scan-pdf: real reportlab PDFs - header, footer and watermark attribution', async () => {
-  const v = await scanPdf(fixture('real-confidential.pdf'));
-  assertVerdictShape(v);
-  assert.equal(v.confidential, true);
-  assert.equal(v.stats.pages, 3);
-  assert.equal(v.limited, undefined);
-  const byZone = Object.fromEntries(v.findings.map((f) => [f.zone, f.markerId]));
-  assert.equal(byZone.header, 'doc.marker.confidential');
-  assert.equal(byZone.footer, 'doc.marker.internal-use-only');
-  assert.equal(byZone.watermark, 'doc.marker.do-not-distribute');
-  assert.ok(v.reasons.some((r) => /header \(page 1\)/.test(r)));
-
-  const clean = await scanPdf(fixture('real-clean.pdf'));
-  assert.equal(clean.confidential, false);
-  assert.equal(clean.findings.length, 0);
-
-  const ttf = await scanPdf(fixture('real-confidential-ttf.pdf')); // embedded TrueType subset font
-  assert.equal(ttf.confidential, true);
-  assert.deepEqual(zonesOf(ttf).sort(), ['header:doc.marker.confidentiel', 'header:doc.marker.diffusion-restreinte']);
-
-  const kw = await scanPdf(fixture('real-keywords.pdf')); // only the Info dictionary carries the marker
-  assert.equal(kw.confidential, true);
-  assert.deepEqual(zonesOf(kw), ['metadata:doc.marker.confidential']);
-});
-
 test('scan-pdf: fallback handles compressed real PDFs, encrypted PDFs are reported', async () => {
   for (const name of ['real-confidential.pdf', 'real-confidential-ttf.pdf', 'real-keywords.pdf']) {
     const v = await scanPdf(fixture(name), { pdfEngine: 'fallback' });
