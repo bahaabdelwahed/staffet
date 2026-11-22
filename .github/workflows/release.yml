@@ -37,25 +37,34 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Read version and check for existing release
+      - name: Read version and check what already exists
         id: version
         run: |
           V=$(node -p "require('./package.json').version")
           echo "version=$V" >> "$GITHUB_OUTPUT"
+
+          # Git tag v<version> exists -> GitHub release already created
           if git rev-parse "v$V" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Version already on npm -> skip publishing
+          if npm view "$(node -p "require('./package.json').name")@$V" version >/dev/null 2>&1; then
+            echo "npm_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish to npm
-        if: steps.version.outputs.exists == 'false'
+        if: steps.version.outputs.npm_exists == 'false'
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Tag and create GitHub release
-        if: steps.version.outputs.exists == 'false'
+        if: steps.version.outputs.tag_exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -64,6 +73,8 @@ jobs:
           git push origin "v$V"
           gh release create "v$V" --title "v$V" --generate-notes
 
-      - name: Report skipped release
-        if: steps.version.outputs.exists == 'true'
-        run: echo "v${{ steps.version.outputs.version }} is already released. Bump the version to release."
+      - name: Report what was skipped
+        if: steps.version.outputs.npm_exists == 'true' || steps.version.outputs.tag_exists == 'true'
+        run: |
+          echo "npm: v${{ steps.version.outputs.version }} already published -> publish skipped"
+          echo "git: tag v${{ steps.version.outputs.version }} exists -> tag/release handled"
