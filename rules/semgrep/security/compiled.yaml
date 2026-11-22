@@ -1,0 +1,260 @@
+# Staffet security rules for Java, Go, C / C++ and PHP (original work).
+rules:
+  # ───────────── Java ─────────────
+  - id: staffet.java.sql-injection
+    languages: [java]
+    severity: ERROR
+    message: A SQL statement is built by string concatenation or String.format.
+    metadata:
+      category: security
+      cwe: CWE-89
+      fix: Use PreparedStatement with ? placeholders and setString/setInt.
+    patterns:
+      - pattern-either:
+          - pattern: $S.$M("..." + $X, ...)
+          - pattern: $S.$M("..." + $X + "...", ...)
+          - pattern: $S.$M(String.format(...), ...)
+          - patterns:
+              - pattern: $S.$M($Q, ...)
+              - pattern-inside: |
+                  String $Q = "..." + $X;
+                  ...
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(executeQuery|executeUpdate|execute|prepareStatement|createQuery|createNativeQuery|addBatch|queryForObject|queryForList|query|update)$
+
+  - id: staffet.java.command-injection
+    languages: [java]
+    severity: ERROR
+    message: An OS command line is built from non-constant input.
+    metadata:
+      category: security
+      cwe: CWE-78
+      fix: Use ProcessBuilder with a fixed program and validated, separate arguments.
+    pattern-either:
+      - pattern: Runtime.getRuntime().exec("..." + $X, ...)
+      - pattern: Runtime.getRuntime().exec(String.format(...), ...)
+      - pattern: new ProcessBuilder("sh", "-c", $X)
+      - pattern: new ProcessBuilder("bash", "-c", $X)
+      - pattern: new ProcessBuilder("cmd", "/c", $X)
+      - pattern: new ProcessBuilder("cmd.exe", "/c", $X)
+
+  - id: staffet.java.weak-crypto
+    languages: [java]
+    severity: WARNING
+    message: Weak digest or cipher (MD5, SHA-1, DES, RC4, ECB mode).
+    metadata:
+      category: security
+      cwe: CWE-327
+      fix: Use SHA-256 and AES/GCM/NoPadding.
+    pattern-either:
+      - pattern: MessageDigest.getInstance("MD5")
+      - pattern: MessageDigest.getInstance("SHA-1")
+      - pattern: MessageDigest.getInstance("SHA1")
+      - pattern: Cipher.getInstance("DES")
+      - pattern: Cipher.getInstance("DESede")
+      - pattern: Cipher.getInstance("RC4")
+      - pattern: Cipher.getInstance("AES")
+      - pattern: Cipher.getInstance("AES/ECB/PKCS5Padding")
+      - pattern: Cipher.getInstance("AES/ECB/NoPadding")
+      - pattern: Cipher.getInstance("DES/ECB/PKCS5Padding")
+
+  - id: staffet.java.unsafe-deserialization
+    languages: [java]
+    severity: WARNING
+    message: Native Java deserialization of untrusted data can lead to remote code execution.
+    metadata:
+      category: security
+      cwe: CWE-502
+      fix: Use a data-only format (JSON) or an ObjectInputFilter allow-list.
+    pattern-either:
+      - pattern: new ObjectInputStream(...)
+      - pattern: new XMLDecoder(...)
+
+  - id: staffet.java.tls-validation-disabled
+    languages: [java]
+    severity: ERROR
+    message: TLS hostname verification is disabled.
+    metadata:
+      category: security
+      cwe: CWE-295
+      fix: Keep the default hostname verifier; trust your CA through a truststore.
+    pattern-either:
+      - pattern: HttpsURLConnection.setDefaultHostnameVerifier(($H, $S) -> true)
+      - pattern: $C.setHostnameVerifier(($H, $S) -> true)
+      - pattern: NoopHostnameVerifier.INSTANCE
+      - pattern: new NoopHostnameVerifier()
+
+  # ───────────── Go ─────────────
+  - id: staffet.go.tls-skip-verify
+    languages: [go]
+    severity: ERROR
+    message: TLS certificate verification is disabled.
+    metadata:
+      category: security
+      cwe: CWE-295
+      fix: Remove InsecureSkipVerify; add your CA to tls.Config.RootCAs.
+    pattern: 'tls.Config{..., InsecureSkipVerify: true, ...}'
+
+  - id: staffet.go.sql-injection
+    languages: [go]
+    severity: ERROR
+    message: A SQL statement is built with fmt.Sprintf or concatenation.
+    metadata:
+      category: security
+      cwe: CWE-89
+      fix: 'Use placeholders: db.Query("SELECT ... WHERE id = $1", id).'
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$M(fmt.Sprintf(...), ...)
+          - pattern: $DB.$M($CTX, fmt.Sprintf(...), ...)
+          - pattern: $DB.$M("..." + $X, ...)
+          - pattern: $DB.$M($CTX, "..." + $X, ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(Query|QueryRow|Exec|Prepare|QueryContext|QueryRowContext|ExecContext|PrepareContext|Raw)$
+
+  - id: staffet.go.command-injection
+    languages: [go]
+    severity: ERROR
+    message: A command line is executed through a shell with non-constant input.
+    metadata:
+      category: security
+      cwe: CWE-78
+      fix: Call the program directly with separate arguments.
+    patterns:
+      - pattern-either:
+          - pattern: exec.Command("sh", "-c", $X)
+          - pattern: exec.Command("bash", "-c", $X)
+          - pattern: exec.Command("cmd", "/C", $X)
+          - pattern: exec.Command("cmd", "/c", $X)
+          - pattern: exec.CommandContext($CTX, "sh", "-c", $X)
+          - pattern: exec.CommandContext($CTX, "bash", "-c", $X)
+      - pattern-not: exec.Command($SH, $FLAG, "...")
+      - pattern-not: exec.CommandContext($CTX, $SH, $FLAG, "...")
+
+  - id: staffet.go.weak-hash
+    languages: [go]
+    severity: WARNING
+    message: MD5/SHA-1 are broken for security purposes.
+    metadata:
+      category: security
+      cwe: CWE-327
+      fix: Use crypto/sha256.
+    pattern-either:
+      - pattern: md5.New()
+      - pattern: md5.Sum(...)
+      - pattern: sha1.New()
+      - pattern: sha1.Sum(...)
+
+  # ───────────── C / C++ ─────────────
+  - id: staffet.c.unbounded-copy
+    languages: [c, cpp]
+    severity: ERROR
+    message: Unbounded string function can overflow the destination buffer.
+    metadata:
+      category: security
+      cwe: CWE-120
+      fix: Use snprintf / strlcpy / fgets with the destination size and check the result.
+    pattern-either:
+      - pattern: strcpy(...)
+      - pattern: strcat(...)
+      - pattern: sprintf(...)
+      - pattern: vsprintf(...)
+      - pattern: gets(...)
+
+  - id: staffet.c.format-string
+    languages: [c, cpp]
+    severity: ERROR
+    message: A non-constant value is used as the format string.
+    metadata:
+      category: security
+      cwe: CWE-134
+      fix: 'Use a constant format: printf("%s", value).'
+    pattern-either:
+      - patterns:
+          - pattern: printf($FMT)
+          - pattern-not: printf("...")
+      - patterns:
+          - pattern: fprintf($F, $FMT)
+          - pattern-not: fprintf($F, "...")
+      - patterns:
+          - pattern: syslog($P, $FMT)
+          - pattern-not: syslog($P, "...")
+
+  - id: staffet.c.command-injection
+    languages: [c, cpp]
+    severity: WARNING
+    message: system()/popen() run a shell with a non-constant command line.
+    metadata:
+      category: security
+      cwe: CWE-78
+      fix: Use execve()/posix_spawn() with an argument vector, or a library API.
+    pattern-either:
+      - patterns:
+          - pattern: system($CMD)
+          - pattern-not: system("...")
+      - patterns:
+          - pattern: popen($CMD, $MODE)
+          - pattern-not: popen("...", $MODE)
+
+  - id: staffet.c.scanf-unbounded
+    languages: [c, cpp]
+    severity: WARNING
+    message: scanf with %s reads without a length limit.
+    metadata:
+      category: security
+      cwe: CWE-120
+      fix: 'Give a field width: scanf("%63s", buf) for a 64-byte buffer.'
+    patterns:
+      - pattern-either:
+          - pattern: scanf($FMT, ...)
+          - pattern: sscanf($SRC, $FMT, ...)
+          - pattern: fscanf($F, $FMT, ...)
+      - metavariable-regex:
+          metavariable: $FMT
+          regex: .*%s.*
+
+  # ───────────── PHP ─────────────
+  - id: staffet.php.code-injection
+    languages: [php]
+    severity: ERROR
+    message: eval() is called on a non-constant value.
+    metadata:
+      category: security
+      cwe: CWE-95
+      fix: Remove eval; use explicit logic.
+    patterns:
+      - pattern: eval($X);
+      - pattern-not: eval("...");
+
+  - id: staffet.php.command-injection
+    languages: [php]
+    severity: ERROR
+    message: A shell command is executed with a non-constant argument.
+    metadata:
+      category: security
+      cwe: CWE-78
+      fix: Avoid the shell, or quote every argument with escapeshellarg().
+    patterns:
+      - pattern-either:
+          - pattern: system($X, ...)
+          - pattern: exec($X, ...)
+          - pattern: shell_exec($X)
+          - pattern: passthru($X, ...)
+      - pattern-not: system("...", ...)
+      - pattern-not: exec("...", ...)
+      - pattern-not: shell_exec("...")
+      - pattern-not: passthru("...", ...)
+
+  - id: staffet.php.unsafe-deserialization
+    languages: [php]
+    severity: WARNING
+    message: unserialize() on untrusted data enables object injection.
+    metadata:
+      category: security
+      cwe: CWE-502
+      fix: Use json_decode(), or pass ['allowed_classes' => false].
+    patterns:
+      - pattern: unserialize($X)
+      - pattern-not: unserialize("...")

@@ -1,0 +1,193 @@
+# Built-in code-quality rules. Same format as code-security.yaml, with type: quality.
+# Add your own in rules/custom/*.yaml (or from the dashboard / `staffet rules add`).
+# Only findings at or above policy.quality.minSeverity (default: warning) trigger the fix loop.
+version: 1
+rules:
+  # ───────────── any language ─────────────
+  - id: quality.generic.placeholder-code
+    type: quality
+    name: Placeholder instead of real code
+    languages: ['*']
+    severity: warning
+    matchComments: true
+    pattern: '(?://|#|/\*|<!--|--)\s*(?:\.\.\.\s*)?(?:rest of (?:the |your )?(?:code|file|function|implementation|class|component)|(?:the )?(?:existing|remaining|previous|other) (?:code|implementation|methods|functions|imports)\b[^\n]{0,40}(?:here|unchanged|remains|stays|as before)?|implementation (?:goes )?here|your (?:code|logic|implementation) (?:goes )?here|same as (?:before|above)|unchanged code|code omitted|omitted for brevity|\.\.\. ?(?:existing|rest|more|other)\b)'
+    flags: gi
+    message: The code contains a placeholder comment where real code should be; applying it would delete working code.
+    fix: Write out the complete code instead of the placeholder.
+
+  - id: quality.generic.merge-conflict
+    type: quality
+    name: Merge conflict markers
+    languages: ['*']
+    severity: error
+    matchComments: true
+    pattern: '^(?:<{7} \S|={7}$|>{7} \S)'
+    flags: gm
+    message: Unresolved merge conflict marker.
+    fix: Resolve the conflict and remove the markers.
+
+  - id: quality.generic.todo
+    type: quality
+    name: TODO / FIXME left in code
+    languages: ['*']
+    severity: info
+    matchComments: true
+    pattern: '\b(?:TODO|FIXME|XXX|HACK)\b'
+    message: A TODO/FIXME marker is left in the code.
+    fix: Finish the work or remove the marker.
+
+  # ───────────── Python ─────────────
+  - id: quality.py.bare-except
+    type: quality
+    name: Bare except / swallowed exception
+    languages: [python]
+    severity: warning
+    pattern: '^[ \t]*except\s*:[ \t]*(?:#[^\n]*)?$|^[ \t]*except\b[^\n]*:[ \t]*\n[ \t]*pass[ \t]*(?:#[^\n]*)?$'
+    flags: gm
+    message: Exceptions are caught too broadly or silently ignored.
+    fix: Catch the specific exception type and handle or log it.
+
+  - id: quality.py.mutable-default
+    type: quality
+    name: Mutable default argument
+    languages: [python]
+    severity: warning
+    pattern: '\bdef\s+\w+\s*\([^)]*=\s*(?:\[\s*\]|\{\s*\}|set\(\s*\)|list\(\s*\)|dict\(\s*\))'
+    message: A mutable default argument is shared between calls.
+    fix: Default to None and create the list/dict inside the function.
+
+  - id: quality.py.wildcard-import
+    type: quality
+    name: Wildcard import
+    languages: [python]
+    severity: warning
+    pattern: '^[ \t]*from\s+[\w.]+\s+import\s+\*'
+    flags: gm
+    message: Wildcard imports pollute the namespace and hide where names come from.
+    fix: Import the names you use explicitly.
+
+  - id: quality.py.print-debug
+    type: quality
+    name: print() used for diagnostics
+    languages: [python]
+    severity: info
+    pattern: '^[ \t]*print\s*\('
+    flags: gm
+    message: print() left in the code.
+    fix: Use the logging module.
+
+  # ───────────── JavaScript / TypeScript ─────────────
+  - id: quality.js.var
+    type: quality
+    name: var declaration
+    languages: [javascript, typescript]
+    severity: warning
+    pattern: '^[ \t]*(?:export\s+)?var\s+[A-Za-z_$]'
+    flags: gm
+    message: var has function scope and hoisting surprises.
+    fix: Use const (or let when the binding is reassigned).
+
+  - id: quality.js.empty-catch
+    type: quality
+    name: Empty catch block
+    languages: [javascript, typescript, java, csharp]
+    severity: warning
+    pattern: '\bcatch\s*(?:\([^)]*\))?\s*\{\s*\}'
+    message: An exception is silently swallowed.
+    fix: Handle the error, log it, or rethrow.
+
+  - id: quality.js.debugger
+    type: quality
+    name: debugger statement
+    languages: [javascript, typescript]
+    severity: warning
+    pattern: '^[ \t]*debugger\s*;?[ \t]*$'
+    flags: gm
+    message: A debugger statement is left in the code.
+    fix: Remove it.
+
+  - id: quality.ts.suppressions
+    type: quality
+    name: Type-check suppression
+    languages: [typescript]
+    severity: warning
+    matchComments: true
+    pattern: '@ts-ignore|@ts-nocheck'
+    message: Type checking is suppressed.
+    fix: Fix the type error, or use @ts-expect-error with an explanation.
+
+  - id: quality.js.console-log
+    type: quality
+    name: console.log left in code
+    languages: [javascript, typescript]
+    severity: info
+    pattern: '\bconsole\.(?:log|debug)\s*\('
+    message: console.log left in the code.
+    fix: Use a logger or remove it.
+
+  - id: quality.js.loose-equality
+    type: quality
+    name: Loose equality
+    languages: [javascript, typescript]
+    severity: info
+    pattern: '(?<![=!<>])(?:==|!=)(?!=)\s*(?!null\b|undefined\b)'
+    message: == / != perform type coercion.
+    fix: Use === / !==.
+
+  - id: quality.ts.any
+    type: quality
+    name: Explicit any
+    languages: [typescript]
+    severity: info
+    pattern: ':\s*any\b(?![\w.])|<any>|\bas\s+any\b'
+    message: any disables type checking for this value.
+    fix: Use a precise type or unknown.
+
+  # ───────────── Java ─────────────
+  - id: quality.java.print-stack-trace
+    type: quality
+    name: printStackTrace / System.out
+    languages: [java]
+    severity: warning
+    pattern: '\.printStackTrace\s*\(\s*\)'
+    message: Exceptions are printed instead of logged.
+    fix: Use a logger (log.error("...", e)).
+
+  # ───────────── Go ─────────────
+  - id: quality.go.ignored-error
+    type: quality
+    name: Error return discarded
+    languages: [go]
+    severity: warning
+    pattern: '^[ \t]*(?:[A-Za-z_]\w*\s*,\s*)+_\s*:?=\s*[^\n]*\('
+    flags: gm
+    message: An error return value is discarded with _.
+    fix: Check the error and handle or return it.
+
+  # ───────────── C / C++ ─────────────
+  - id: quality.c.goto
+    type: quality
+    name: goto
+    languages: [c, cpp]
+    severity: warning
+    pattern: '(?<![\w])goto\s+[A-Za-z_]\w*\s*;'
+    message: goto makes control flow hard to follow.
+    fix: Use structured control flow (loops, early returns, cleanup functions).
+
+  - id: quality.c.unchecked-conversion
+    type: quality
+    name: atoi / atof / atol
+    languages: [c, cpp]
+    severity: warning
+    pattern: '(?<![\w.>])ato(?:i|f|l|ll)\s*\('
+    message: atoi-family functions cannot report conversion errors.
+    fix: Use strtol/strtod and check endptr and errno.
+
+  - id: quality.c.void-main
+    type: quality
+    name: void main
+    languages: [c, cpp]
+    severity: warning
+    pattern: '\bvoid\s+main\s*\('
+    message: main must return int.
+    fix: Declare int main(void) and return a status code.
