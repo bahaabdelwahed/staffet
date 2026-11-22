@@ -1,5 +1,3 @@
-<div align="center">
-
 # 🛡️ Staffet
 
 **An LLM firewall proxy.** Put it between your AI tools and model providers to redact sensitive data, guard tool calls, scan generated code, and protect classified documents.
@@ -95,7 +93,3 @@ npm test               # run the test suite
 ```
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## 📜 License
-
-Currently unlicensed (private). Add a license file before publishing publicly.
